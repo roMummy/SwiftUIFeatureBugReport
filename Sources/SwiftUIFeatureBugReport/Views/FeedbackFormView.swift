@@ -136,9 +136,9 @@ public struct FeedbackFormView: View {
             try await gitHubService.createIssue(
                 title: title,
                 description: description,
-                contactEmail: contactEmail.isEmpty ? nil : contactEmail,
                 type: selectedType,
-                deviceInfo: deviceInfo
+                deviceInfo: deviceInfo,
+                contactEmail: contactEmail.isEmpty ? nil : contactEmail
             )
             
             showSuccess = true

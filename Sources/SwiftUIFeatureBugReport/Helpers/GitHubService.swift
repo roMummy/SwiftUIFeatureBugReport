@@ -152,22 +152,31 @@ import SwiftUI
     
     
     @discardableResult
-    public func createIssue(title: String, description: String, contactEmail: String? = nil, type: IssueType, deviceInfo: String) async throws -> Int {
+    public func createIssue(title: String, description: String, type: IssueType, deviceInfo: String?, contactEmail: String? = nil) async throws -> Int {
         
         let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues")!
         
+        
+        var deviceData = ""
+        if let deviceInfo {
+            
+            deviceData = "\n\n---\n**Device Information:**\n" + deviceInfo
+        }
+        
+        
+        var contactData = ""
+        if let contactEmail {
+            
+            contactData = "**Contact Email:**\n" + contactEmail
+        }        
+        
+        
         let label = type == .bugs ? "bug" : "feature-request"
         let body = """
-        \(description)
+        \(description)        
+        \(deviceData)
         
-        ---
-        **Device Information:**
-        \(deviceInfo)
-        
-        **Contact Email:**
-        \(contactEmail ?? "N/A")
-        
-        *Submitted via mobile app*
+        \(contactData)
         
         ---
         👍 Votes: 0
