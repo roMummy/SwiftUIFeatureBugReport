@@ -12,6 +12,8 @@ public struct FeedbackFormView: View {
     @Environment(\.dismiss) private var dismiss
     
     private let gitHubService: GitHubService
+    private let issueToEdit: GitHubIssue?
+    private let ownershipService: IssueOwnershipService
     
     
     @State private var title = ""
@@ -22,15 +24,32 @@ public struct FeedbackFormView: View {
     @State private var showSuccess = false
     @State private var errorMessage: String?
     
-    public init(gitHubService: GitHubService, selectedType: IssueType) {
-        
+    public init(gitHubService: GitHubService,
+                selectedType: IssueType,
+                issueToEdit: GitHubIssue? = nil,
+                ownershipService: IssueOwnershipService = IssueOwnershipService()) {
+            
         self.gitHubService = gitHubService
-        self.selectedType = selectedType == .all ? .bugs : selectedType
+        self.issueToEdit = issueToEdit
+        self.ownershipService = ownershipService
+        
+        // Pre-populate if editing
+        if let issue = issueToEdit, issue.state == "open" {
+            
+            self.selectedType = issue.isFeatureRequest ? .features : .bugs
+            
+            _title = State(initialValue: issue.title)
+            _description = State(initialValue: issue.displayableBody ?? "")
+        }
+        else {
+            
+            self.selectedType = selectedType == .all ? .bugs : selectedType
+        }
     }
     
     public var body: some View {
         
-        NavigationView {
+        NavigationStack {
             
             Form {
                 
@@ -42,6 +61,7 @@ public struct FeedbackFormView: View {
                         Text("Feature Request").tag(IssueType.features)
                     }
                     .pickerStyle(.segmented)
+                    .disabled(issueToEdit != nil)
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
@@ -133,13 +153,33 @@ public struct FeedbackFormView: View {
         do {
             
             let deviceInfo = DeviceInfo.generateReport()
-            try await gitHubService.createIssue(
-                title: title,
-                description: description,
-                type: selectedType,
-                deviceInfo: deviceInfo,
-                contactEmail: contactEmail.isEmpty ? nil : contactEmail
-            )
+            
+            if let issue = issueToEdit {
+                
+                // Update existing issue
+                try await gitHubService.updateIssueContent(
+                    number: issue.number,
+                    title: title,
+                    description: description,
+                    type: selectedType,
+                    deviceInfo: deviceInfo,
+                    contactEmail: contactEmail.isEmpty ? nil : contactEmail
+                )
+            }
+            else {
+                
+                // Create new issue
+                let issueNumber = try await gitHubService.createIssue(
+                    title: title,
+                    description: description,
+                    type: selectedType,
+                    deviceInfo: deviceInfo,
+                    contactEmail: contactEmail.isEmpty ? nil : contactEmail
+                )
+                
+                // Mark as owned
+                ownershipService.markAsOwned(issueNumber)
+            }
             
             showSuccess = true
             
