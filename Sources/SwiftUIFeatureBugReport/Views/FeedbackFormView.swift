@@ -49,7 +49,7 @@ public struct FeedbackFormView: View {
     
     public var body: some View {
         
-        NavigationView {
+        NavigationStack {
             
             Form {
                 
