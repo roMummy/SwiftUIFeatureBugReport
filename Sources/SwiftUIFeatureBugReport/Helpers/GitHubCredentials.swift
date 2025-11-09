@@ -71,6 +71,20 @@ public struct GitHubIssue: Codable, Identifiable {
     }
     
     
+    public var wasEdited: Bool {
+        
+        let formatter = ISO8601DateFormatter()
+        
+        guard let created = formatter.date(from: created_at),
+              let updated = formatter.date(from: updated_at) else {
+            return false
+        }
+        
+        //consider editied if updated is at least 1 min after created date
+        return updated.timeIntervalSince(created) > 60
+    }
+    
+    
     private func removeVoteSection(from body: String) -> String {
         
         guard !body.isEmpty else { return body }

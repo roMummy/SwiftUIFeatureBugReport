@@ -10,12 +10,14 @@ import SwiftUI
 public struct CompletedIssuesView: View {
     
     private let gitHubService: GitHubService
+    private let ownershipService: IssueOwnershipService
     
     @State private var selectedFilter: IssueType
     
-    public init(gitHubService: GitHubService, filter: IssueType = .all) {
+    public init(gitHubService: GitHubService, ownershipService: IssueOwnershipService, filter: IssueType = .all) {
         
         self.gitHubService = gitHubService
+        self.ownershipService = ownershipService
         self.selectedFilter = filter
     }
     
@@ -62,7 +64,7 @@ public struct CompletedIssuesView: View {
                 ForEach(filteredIssues) { issue in
                     
                     NavigationLink(destination: {
-                        IssueDetailsView(issue: issue, gitHubService: gitHubService)
+                        IssueDetailsView(issue: issue, gitHubService: gitHubService, ownershipService: ownershipService)
                     }, label: {
                         
                         VStack(alignment: .leading, spacing: 8) {

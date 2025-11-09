@@ -50,6 +50,47 @@ import SwiftUI
     }
 }
 
+
+@MainActor public class IssueOwnershipService {
+    
+    @AppStorage("ownedFeedbackIssues") private var ownedIssueData: Data = Data()
+    
+    private var ownedIssues: Set<Int> {
+        
+        get { (try? JSONDecoder().decode(Set<Int>.self, from: ownedIssueData)) ?? [] }
+        set {
+            
+            if let encoded = try? JSONEncoder().encode(newValue) {
+                
+                ownedIssueData = encoded
+            }
+        }
+    }
+    
+    public init() {}
+    
+    // Mark an issue as owned by this device
+    public func markAsOwned(_ issueNumber: Int) {
+        
+        var owned = ownedIssues
+        owned.insert(issueNumber)
+        ownedIssues = owned
+    }
+    
+    // Check if this device owns an issue
+    public func ownsIssue(_ issueNumber: Int) -> Bool {
+        
+        ownedIssues.contains(issueNumber)
+    }
+    
+    // Get all owned issue numbers
+    public func getOwnedIssues() -> Set<Int> {
+        
+        return ownedIssues
+    }
+}
+
+
 public enum VotingError: LocalizedError {
     
     case alreadyVoted

@@ -10,6 +10,7 @@ import SwiftUI
 public struct IssuesListView: View {
     
     @State var gitHubService: GitHubService
+    @State private var ownershipService = IssueOwnershipService()
     
     @State private var votingService = VotingService()
     
@@ -37,77 +38,81 @@ public struct IssuesListView: View {
     
     public var body: some View {
         
-        Form {
+        NavigationStack {
             
-            Section {
-                
-                Picker("Filter", selection: $selectedFilter) {
-                    
-                    ForEach(IssueType.allCases, id: \.self) { type in
-                        
-                        Text(type.rawValue)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-                
-            if gitHubService.isLoading {
-                
-                ProgressView("Loading...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                
-            }
-            else {
+            Form {
                 
                 Section {
                     
-                    NavigationLink(destination: { CompletedIssuesView(gitHubService: gitHubService, filter: selectedFilter) },
-                                   label: { Label("View Completed", systemImage: "checkmark.circle") })
+                    Picker("Filter", selection: $selectedFilter) {
+                        
+                        ForEach(IssueType.allCases, id: \.self) { type in
+                            
+                            Text(type.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
-                
-                if filteredIssues.isEmpty {
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
                     
-                    emptyStateView
+                if gitHubService.isLoading {
+                    
+                    ProgressView("Loading...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    
                 }
                 else {
                     
-                    List(filteredIssues) { issue in
+                    Section {
                         
-                        IssueRowView(service: $gitHubService,
-                                     selectedFilter: $selectedFilter,
-                                     issue: issue,
-                                     isVoting: votingInProgress.contains(issue.number),
-                                     hasVoted: votingService.hasVoted(for: issue.number),
-                                     onUpvote: { await upvoteIssue(issue) })
+                        NavigationLink(destination: { CompletedIssuesView(gitHubService: gitHubService, ownershipService: ownershipService, filter: selectedFilter) },
+                                       label: { Label("View Completed", systemImage: "checkmark.circle") })
+                    }
+                    
+                    if filteredIssues.isEmpty {
+                        
+                        emptyStateView
+                    }
+                    else {
+                        
+                        List(filteredIssues) { issue in
+                            
+                            IssueRowView(service: $gitHubService,
+                                         ownershipService: $ownershipService,
+                                         selectedFilter: $selectedFilter,
+                                         issue: issue,
+                                         isVoting: votingInProgress.contains(issue.number),
+                                         hasVoted: votingService.hasVoted(for: issue.number),
+                                         onUpvote: { await upvoteIssue(issue) })
+                        }
                     }
                 }
             }
-        }
-        .navigationTitle("Feedback")
-        .toolbar {
-            
-            ToolbarItem(placement: .topBarTrailing) {
+            .navigationTitle("Feedback")
+            .toolbar {
                 
-                Button(action: { showingFeedbackForm = true }, label: { Image(systemName: "plus") })
+                ToolbarItem(placement: .topBarTrailing) {
+                    
+                    Button(action: { showingFeedbackForm = true }, label: { Image(systemName: "plus") })
+                }
             }
+            
+            .task {
+                
+                guard !gitHubService.hasLoadedInitialIssues else { return }
+                
+                await gitHubService.loadIssues()
+                
+                gitHubService.hasLoadedInitialIssues = true
+            }
+            
+            .refreshable { await gitHubService.loadIssues() }
+            
+            .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService, selectedType: selectedFilter, ownershipService: ownershipService) }
+            
+            .alert("Voting Error", isPresented: $showErrorAlert, actions: { Button("Ok") { } }, message: { Text(errorMessage ?? "Unknown error occurred") })
         }
-        
-        .task {
-            
-            guard !gitHubService.hasLoadedInitialIssues else { return }
-            
-            await gitHubService.loadIssues()
-            
-            gitHubService.hasLoadedInitialIssues = true
-        }
-        
-        .refreshable { await gitHubService.loadIssues() }
-        
-        .sheet(isPresented: $showingFeedbackForm) { FeedbackFormView(gitHubService: gitHubService, selectedType: selectedFilter) }
-        
-        .alert("Voting Error", isPresented: $showErrorAlert, actions: { Button("Ok") { } }, message: { Text(errorMessage ?? "Unknown error occurred") })
     }
     
     private var emptyStateView: some View {
@@ -182,6 +187,7 @@ public struct IssuesListView: View {
 public struct IssueRowView: View {
     
     @Binding var service: GitHubService
+    @Binding var ownershipService: IssueOwnershipService
     @Binding var selectedFilter: IssueType
     var issue: GitHubIssue
     
@@ -193,7 +199,7 @@ public struct IssueRowView: View {
     
     public var body: some View {
         
-        NavigationLink(destination: { IssueDetailsView(issue: issue, gitHubService: service) }, label: {
+        NavigationLink(destination: { IssueDetailsView(issue: issue, gitHubService: service, ownershipService: ownershipService) }, label: {
             
             VStack(alignment: .leading, spacing: 8) {
                             
@@ -244,15 +250,13 @@ public struct IssueRowView: View {
                     
                     Spacer()
                     
-                    Text(formatDate(issue.created_at))
+                    Text(issue.wasEdited ? "Updated \(formatDate(issue.updated_at))" : formatDate(issue.created_at))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
             .padding(.vertical, 4)
         })
-        
-        
     }
     
     private func formatDate(_ dateString: String) -> String {
@@ -318,10 +322,17 @@ public struct IssueDetailsView: View {
     
     let issue: GitHubIssue
     let gitHubService: GitHubService
+    let ownershipService: IssueOwnershipService
     
     @State private var comments: [GitHubComment] = []
     @State private var isLoadingComments = false
     @State private var errorMessage: String?
+    
+    @State private var showEditForm = false
+    
+    @State private var showCloseConfirmation = false
+    @State private var showReopenConfirmation = false
+    @State private var isClosing = false
     
     public var body: some View {
         
@@ -408,9 +419,58 @@ public struct IssueDetailsView: View {
         }
         .navigationTitle(issue.title)
         
+        .toolbar {
+            
+            //only show this if the corerct user
+            if ownershipService.ownsIssue(issue.number) {
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    
+                    Menu(content: {
+                        
+                        if gitHubService.completedIssues.contains(where: { $0.id == issue.id }) {
+                            
+                            Button(action: { showReopenConfirmation = true }, label: { Label("Mark Incomplete", systemImage: "xmark") })
+                        }
+                        else {
+                            
+                            Button(action: { showEditForm = true }, label: { Label("Edit", systemImage: "pencil") })
+                            Button(action: { showCloseConfirmation = true }, label: { Label("Mark Completed", systemImage: "checkmark") })
+                        }
+                        
+                    }, label: { Image(systemName: "ellipsis") })
+                }
+            }
+        }
+        
         .task { await loadComments() }
         
         .refreshable { await loadComments() }
+        
+        .sheet(isPresented: $showEditForm) {
+            FeedbackFormView(
+                gitHubService: gitHubService,
+                selectedType: issue.isFeatureRequest ? .features : .bugs,
+                issueToEdit: issue,
+                ownershipService: ownershipService
+            )
+        }
+        
+        .alert("Close Feedback", isPresented: $showCloseConfirmation) {
+            
+            Button("Close", role: .destructive) { Task { await closeIssue() } }
+            
+            Button("Cancel", role: .cancel) { }
+            
+        } message: {  Text("Are you sure you want to close this issue? You can reopen it later if needed.") }
+        
+        .alert("Reopen Feedback", isPresented: $showReopenConfirmation) {
+            
+            Button("Reopen") { Task { await reopenIssue() } }
+            
+            Button("Cancel", role: .cancel) { }
+            
+        } message: { Text("This will reopen the issue and mark it as active again.") }
     }
     
     private func loadComments() async {
@@ -427,6 +487,44 @@ public struct IssueDetailsView: View {
         
         isLoadingComments = false
     }
+    
+    
+    private func closeIssue() async {
+            
+        isClosing = true
+        errorMessage = nil
+        
+        do {
+            
+            try await gitHubService.closeIssue(number: issue.number)
+            
+            //refresh issues
+            await gitHubService.loadIssues()
+            await gitHubService.loadClosedIssues()
+        }
+        catch { errorMessage = "Failed to close issue: \(error.localizedDescription)"  }
+        
+        isClosing = false
+    }
+    
+    private func reopenIssue() async {
+        
+        isClosing = true
+        errorMessage = nil
+        
+        do {
+            
+            try await gitHubService.reopenIssue(number: issue.number)
+            
+            //refresh issues
+            await gitHubService.loadIssues()
+            await gitHubService.loadClosedIssues()
+        }
+        catch { errorMessage = "Failed to reopen issue: \(error.localizedDescription)" }
+        
+        isClosing = false
+    }
+    
     
     private func formatDate(_ dateString: String) -> String {
         

@@ -132,7 +132,8 @@ import SwiftUI
                 throw GitHubError.invalidResponse
             }
             
-            let fetchedIssues = try JSONDecoder().decode([GitHubIssue].self, from: data)
+            //only showing issues with bug or feature request. Won't include pull request issues
+            let fetchedIssues = try JSONDecoder().decode([GitHubIssue].self, from: data).filter({ $0.labels.contains(where: { $0.name == "bug" || $0.name == "feature-request" }) })
             
             // Sort by last updated (most recent first)
             withAnimation {
@@ -157,30 +158,8 @@ import SwiftUI
         let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues")!
         
         
-        var deviceData = ""
-        if let deviceInfo {
-            
-            deviceData = "\n\n---\n**Device Information:**\n" + deviceInfo
-        }
-        
-        
-        var contactData = ""
-        if let contactEmail {
-            
-            contactData = "**Contact Email:**\n" + contactEmail
-        }        
-        
-        
         let label = type == .bugs ? "bug" : "feature-request"
-        let body = """
-        \(description)        
-        \(deviceData)
-        
-        \(contactData)
-        
-        ---
-        👍 Votes: 0
-        """
+        let body = generateIssueBody(description: description, deviceInfo: deviceInfo, contactEmail: contactEmail)
         
         let issueRequest = CreateIssueRequest(
             title: title,
@@ -212,6 +191,102 @@ import SwiftUI
         return createdIssue.number
     }
     
+    
+    @discardableResult
+    public func updateIssueContent(number: Int, title: String, description: String, type: IssueType, deviceInfo: String, contactEmail: String? = nil) async throws -> GitHubIssue {
+        
+        struct UpdateIssueContentRequest: Codable {
+            
+            let title: String
+            let body: String
+            let labels: [String]
+        }
+        
+        // Get current issue to preserve vote count
+        let currentIssue = try await getIssue(number: number)
+        let currentVotes = currentIssue.voteCount
+        
+        let label = type == .bugs ? "bug" : "feature-request"
+        let body = generateIssueBody(description: description, deviceInfo: deviceInfo, contactEmail: contactEmail)
+        
+        
+        let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues/\(number)")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        
+        let updateRequest = UpdateIssueContentRequest(
+            title: title,
+            body: body,
+            labels: [label, "user-submitted"]
+        )
+        
+        let encoder = JSONEncoder()
+        request.httpBody = try encoder.encode(updateRequest)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode else {
+            throw GitHubError.failedToUpdate
+        }
+        
+        await loadIssues()
+        
+        return try JSONDecoder().decode(GitHubIssue.self, from: data)
+    }
+    
+    
+    
+    struct CloseIssueRequest: Codable {
+        
+        let state: String // "open" or "closed"
+    }
+    
+    // Close an issue
+    public func closeIssue(number: Int) async throws {
+        
+        let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues/\(number)")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        
+        let closeRequest = CloseIssueRequest(state: "closed")
+        let encoder = JSONEncoder()
+        request.httpBody = try encoder.encode(closeRequest)
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode else {
+            throw GitHubError.failedToUpdate
+        }
+    }
+
+    // Reopen an issue
+    public func reopenIssue(number: Int) async throws {
+        
+        let url = URL(string: "\(baseURL)/repos/\(owner)/\(repo)/issues/\(number)")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        headers.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        
+        let reopenRequest = CloseIssueRequest(state: "open")
+        let encoder = JSONEncoder()
+        request.httpBody = try encoder.encode(reopenRequest)
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              200...299 ~= httpResponse.statusCode else {
+            throw GitHubError.failedToUpdate
+        }
+    }
+    
+    
     public func addVote(to issueNumber: Int) async throws {
 
         let issue = try await getIssue(number: issueNumber)
@@ -224,6 +299,39 @@ import SwiftUI
         let updatedBody = updateVoteCount(in: issue.body, newCount: newVotes)
         try await updateIssue(number: issueNumber, body: updatedBody)
     }
+    
+    
+    
+    private func generateIssueBody(description: String, deviceInfo: String?, contactEmail: String?) -> String {
+        
+        var deviceData = ""
+        if let deviceInfo {
+            
+            deviceData = "\n\n---\n**Device Information:**\n" + deviceInfo
+        }
+        
+        
+        var contactData = ""
+        if let contactEmail {
+            
+            contactData = "**Contact Email:**\n" + contactEmail
+        }
+        
+        
+        
+        let body = """
+        \(description)        
+        \(deviceData)
+        
+        \(contactData)
+        
+        ---
+        👍 Votes: 0
+        """
+        
+        return body
+    }
+    
     
     // MARK: - Comments
 
