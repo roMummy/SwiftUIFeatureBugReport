@@ -15,6 +15,7 @@ public struct IssuesListView: View {
     @State private var votingService = VotingService()
     
     @State private var selectedFilter: IssueType = .all
+    @State private var selectedSort: SortType = .votes
     
     @State private var showingFeedbackForm = false
     @State private var votingInProgress: Set<Int> = []
@@ -33,6 +34,15 @@ public struct IssuesListView: View {
         case .all: return gitHubService.issues
         case .bugs: return gitHubService.issues.filter { $0.isBug }
         case .features: return gitHubService.issues.filter { $0.isFeatureRequest }
+        }
+    }
+    
+    var sortedIssues: [GitHubIssue] {
+        
+        switch selectedSort {
+            
+        case .votes: return filteredIssues.sorted(by: { $0.voteCount > $1.voteCount })
+        case .mostRecent: return filteredIssues.sorted(by: { $0.updated_at > $1.updated_at })
         }
     }
     
@@ -76,7 +86,7 @@ public struct IssuesListView: View {
                     }
                     else {
                         
-                        List(filteredIssues) { issue in
+                        List(sortedIssues) { issue in
                             
                             IssueRowView(service: $gitHubService,
                                          ownershipService: $ownershipService,
@@ -91,6 +101,27 @@ public struct IssuesListView: View {
             }
             .navigationTitle("Feedback")
             .toolbar {
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    
+                    Menu(content: {
+                        
+                        Picker(selection: $selectedSort, content: {
+                            
+                            ForEach(SortType.allCases, id: \.self) {
+                                
+                                Text($0.localised)
+                            }
+                            
+                        }, label: { })
+                        
+                    }, label: { Image(systemName: "line.horizontal.3.decrease") })
+                }
+                
+                if #available(iOS 26, *) {
+                    
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
                 
                 ToolbarItem(placement: .topBarTrailing) {
                     

@@ -84,21 +84,8 @@ import SwiftUI
             
             let fetchedIssues = try JSONDecoder().decode([GitHubIssue].self, from: data)
             
-            // Sort by vote count (highest first), then by creation date
-            withAnimation {
-                
-                self.issues = fetchedIssues.sorted { issue1, issue2 in
-                    let votes1 = issue1.voteCount
-                    let votes2 = issue2.voteCount
-                    
-                    if votes1 == votes2 {
-                        // If votes are equal, sort by creation date (newest first)
-                        return issue1.created_at > issue2.created_at
-                    }
-                    
-                    return votes1 > votes2
-                }
-            }
+            // no need to sort anymore since the user can choose the sort
+            self.issues = fetchedIssues
         }
         catch {
             

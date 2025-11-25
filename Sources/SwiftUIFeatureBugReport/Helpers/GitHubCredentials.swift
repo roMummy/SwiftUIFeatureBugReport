@@ -190,6 +190,21 @@ public enum IssueType: String, CaseIterable {
     }
 }
 
+public enum SortType: String, CaseIterable {
+    
+    case votes = "Votes"
+    case mostRecent = "Most Recent"
+    
+    var localised: LocalizedStringKey {
+        
+        switch self {
+            
+        case .votes: return "Votes"
+        case .mostRecent: return "Most Recent"
+        }
+    }
+}
+
 public enum GitHubError: LocalizedError {
     
     case invalidURL
