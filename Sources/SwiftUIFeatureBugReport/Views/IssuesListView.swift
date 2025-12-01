@@ -15,7 +15,7 @@ public struct IssuesListView: View {
     @State private var votingService = VotingService()
     
     @State private var selectedFilter: IssueType = .all
-    @State private var selectedSort: SortType = .votes
+    @AppStorage("issueSort") private var selectedSort: SortType = .votes
     
     @State private var showingFeedbackForm = false
     @State private var votingInProgress: Set<Int> = []
