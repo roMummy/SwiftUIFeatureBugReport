@@ -118,10 +118,10 @@ public struct IssuesListView: View {
                     }, label: { Image(systemName: "line.horizontal.3.decrease") })
                 }
                 
-                if #available(iOS 26, *) {
+                // if #available(iOS 26, *) {
                     
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                }
+                //     ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                // }
                 
                 ToolbarItem(placement: .topBarTrailing) {
                     
