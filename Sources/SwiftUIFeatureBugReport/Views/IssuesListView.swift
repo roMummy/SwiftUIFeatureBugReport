@@ -8,11 +8,11 @@
 import SwiftUI
 
 public struct IssuesListView: View {
-    
-    @State var gitHubService: GitHubService
+
+    @StateObject private var gitHubService: GitHubService
     @State private var ownershipService = IssueOwnershipService()
-    
-    @State private var votingService = VotingService()
+
+    @StateObject private var votingService = VotingService()
     
     @State private var selectedFilter: IssueType = .all
     @AppStorage("issueSort") private var selectedSort: SortType = .votes
@@ -23,8 +23,8 @@ public struct IssuesListView: View {
     @State private var showErrorAlert = false
     
     public init(credentials: GitHubCredentials) {
-        
-        self.gitHubService = GitHubService(credentials: credentials)
+
+        _gitHubService = StateObject(wrappedValue: GitHubService(credentials: credentials))
     }
     
     var filteredIssues: [GitHubIssue] {
@@ -88,9 +88,9 @@ public struct IssuesListView: View {
                         
                         List(sortedIssues) { issue in
                             
-                            IssueRowView(service: $gitHubService,
-                                         ownershipService: $ownershipService,
-                                         selectedFilter: $selectedFilter,
+                            IssueRowView(service: gitHubService,
+                                         ownershipService: ownershipService,
+                                         selectedFilter: selectedFilter,
                                          issue: issue,
                                          isVoting: votingInProgress.contains(issue.number),
                                          hasVoted: votingService.hasVoted(for: issue.number),
@@ -216,10 +216,10 @@ public struct IssuesListView: View {
 }
 
 public struct IssueRowView: View {
-    
-    @Binding var service: GitHubService
-    @Binding var ownershipService: IssueOwnershipService
-    @Binding var selectedFilter: IssueType
+
+    let service: GitHubService
+    let ownershipService: IssueOwnershipService
+    let selectedFilter: IssueType
     var issue: GitHubIssue
     
     var isVoting: Bool
@@ -242,7 +242,7 @@ public struct IssueRowView: View {
                     
                     Spacer()
                     
-                    IssueTypeLabel(selectedFilter: $selectedFilter, issue: issue)
+                    IssueTypeLabel(selectedFilter: selectedFilter, issue: issue)
                 }
                 
                 // Description (excluding vote count section)
@@ -308,9 +308,9 @@ public struct IssueRowView: View {
 
 
 public struct IssueTypeLabel: View {
-    
-    @Binding var selectedFilter: IssueType
-    
+
+    let selectedFilter: IssueType
+
     var issue: GitHubIssue
     
     public var body: some View {

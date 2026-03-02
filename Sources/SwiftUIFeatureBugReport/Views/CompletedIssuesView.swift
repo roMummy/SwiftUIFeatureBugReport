@@ -77,7 +77,7 @@ public struct CompletedIssuesView: View {
                                 
                                 Spacer()
                                 
-                                IssueTypeLabel(selectedFilter: $selectedFilter, issue: issue)
+                                IssueTypeLabel(selectedFilter: selectedFilter, issue: issue)
                             }
                             
                             // Description

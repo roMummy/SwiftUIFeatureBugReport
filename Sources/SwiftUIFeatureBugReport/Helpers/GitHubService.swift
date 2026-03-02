@@ -1,14 +1,15 @@
 // GitHubService.swift
 import Foundation
 import SwiftUI
+import Combine
 
-@Observable @MainActor public class GitHubService {
-    
+@MainActor public class GitHubService: ObservableObject {
+
     private var allIssues: [GitHubIssue] = []
-    public var issues: [GitHubIssue] = []
-    public var completedIssues: [GitHubIssue] = []
-    public var isLoading = false
-    public var errorMessage: String?
+    @Published public var issues: [GitHubIssue] = []
+    @Published public var completedIssues: [GitHubIssue] = []
+    @Published public var isLoading = false
+    @Published public var errorMessage: String?
     
     private let baseURL = "https://api.github.com"
     private let owner: String

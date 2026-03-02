@@ -7,10 +7,11 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
-@Observable @MainActor public class VotingService {
-    
-    @ObservationIgnored @AppStorage("votedIssues") private var votedIssueData: Data = Data()
+@MainActor public class VotingService: ObservableObject {
+
+    @AppStorage("votedIssues") private var votedIssueData: Data = Data()
     
     private var votedIssues: Set<Int> {
         
